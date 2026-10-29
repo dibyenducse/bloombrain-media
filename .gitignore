@@ -57,3 +57,6 @@ next-env.d.ts
 
 *.tsbuildinfo
 .dev.vars*
+
+# Isolated GitHub Pages preview/export (full application source remains intact)
+/.pages-build/

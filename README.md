@@ -53,3 +53,17 @@ No production credentials, database contents, dependency folders, or generated b
 - `docs/SITES-RUNTIME.md`: current runtime and local setup details
 
 The live Sites deployment remains separate from this GitHub repository. Pushing here does not update the existing Sites deployment.
+
+## GitHub Pages preview
+
+The public portfolio can be previewed at `https://dibyenducse.github.io/bloombrain-media/` once Pages deployment completes. The preview is built from this source using `scripts/build-github-pages.mjs`, then published from the `gh-pages` branch.
+
+The build adapter works in an ignored staging folder; it does not remove the full application's admin, database, authentication, or analytics code. GitHub Pages is static hosting, so the preview sends no analytics and its `/admin/` page explains that sign-in requires the full hosting setup.
+
+To rebuild after `npm ci`, provide the backed-up video/poster folder (filenames from `lib/portfolio.json`):
+
+```sh
+PAGES_MEDIA_DIR=/absolute/path/to/media node scripts/build-github-pages.mjs
+```
+
+Publish only `.pages-build/out/` to `gh-pages`, with `.nojekyll` included. The base URL defaults to `/bloombrain-media`; override `PAGES_BASE_PATH` for a different repository. The build fails if any video or poster is missing. `preview-build.json` records the source revision and preview limitations. No custom-domain or DNS changes are required for this preview.
