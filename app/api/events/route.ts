@@ -11,6 +11,6 @@ export async function POST(req:Request){
  try {const raw=await req.text();if(raw.length>3000)return new Response(null,{status:413});const p=schema.safeParse(JSON.parse(raw));if(!p.success)return new Response(null,{status:400});const v=p.data;if(v.kind==='play'&&!portfolio.some(x=>x.id===v.video))return new Response(null,{status:400});
  const db=getDb();const [n]=await db.select({n:count()}).from(events).where(and(eq(events.session,v.session),gte(events.createdAt,Date.now()-60000)));if(n.n>=30)return new Response(null,{status:429});
  let referrer='Direct';try{referrer=v.referrer?new URL(v.referrer).hostname:'Direct'}catch{}
- await db.insert(events).values({id:crypto.randomUUID(),session:v.session,kind:v.kind,path:v.path,video:v.video||null,referrer,device:v.device,country:(req as Request & {cf?:{country?:string}}).cf?.country||null,createdAt:Date.now()}); return new Response(null,{status:204});
+ await db.insert(events).values({id:crypto.randomUUID(),session:v.session,kind:v.kind,path:v.path,video:v.video||null,referrer,device:v.device,country:req.headers.get('cf-ipcountry')?.slice(0,8)||null,createdAt:Date.now()}); return new Response(null,{status:204});
  }catch{return new Response(null,{status:503})}
 }
