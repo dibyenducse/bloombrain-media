@@ -156,4 +156,3 @@ footer>div{align-items:center;flex-wrap:wrap}
 .creator-film{width:100%;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#111}
 .creator-film .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:70px;height:70px;font-size:22px}
 @media(max-width:700px){.creator-intro{padding:45px 6%}.creator-film .play{width:48px;height:48px;font-size:16px}}
-.login-form{display:flex;gap:12px;flex-wrap:wrap;margin:30px 0 10px}.login-form input{flex:1;min-width:200px;background:none;border:0;border-bottom:1px solid #55594e;color:var(--paper);padding:12px 2px}.login .error{margin-top:20px}.link-button{background:none;border:0;padding:0;color:inherit;font-size:12px;text-align:left}
