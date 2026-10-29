@@ -23,13 +23,12 @@ npm run dev
 2. Settings: Node.js **20 or 22**, build command `npm run build`, start command `npm start`, output directory `.next`.
 3. Deploy.
 
-Portfolio videos and posters in `lib/portfolio.json` still point to the original site's assets. Copy them before retiring that site and update the URLs.
 
 ## Main files
 
 - `components/portfolio.tsx`: public website and video interactions
 - `app/globals.css`: styling
-- `lib/portfolio.json`: video sources and metadata
+- `lib/portfolio.json`: video sources and metadata (files live in `public/media/`)
 - `lib/collections.ts`: collection grouping and deduplication
 - `lib/reviews.json`: client reviews and portrait paths
 
