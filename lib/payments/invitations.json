@@ -1,0 +1,12 @@
+{
+  "admin": {
+    "emailHash": "d1b0aed0964d68090ea57422a2a3913c6dc9671ef381d2bb246c870a27a1b781",
+    "tokenHash": "c50d6def80a7a25c2a1e829c6b5d0930efd62e51a17ea38714796c84661dbd09",
+    "expires": 1795055926959
+  },
+  "royal": {
+    "emailHash": "0d8dc623456d178f58a42725511170dbd4827aad82c8bbacc2b439b245637574",
+    "tokenHash": "f50032090d50b37610fa2c28142169ac3cdf1a3e196b4fa6548f7205a341086c",
+    "expires": 1795055926959
+  }
+}

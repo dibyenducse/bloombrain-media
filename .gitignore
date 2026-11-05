@@ -37,3 +37,7 @@ yarn-error.log*
 next-env.d.ts
 
 *.tsbuildinfo
+
+# Private payment ledger setup and local test data
+.payment-*
+.ledger-*
