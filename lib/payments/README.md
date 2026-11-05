@@ -49,3 +49,13 @@ take over an activated account. Do not publish a public password-reset endpoint.
 An owner-confirmed opening may be provisioned through private host variables
 LEDGER_OPENING_PAISA (signed integer paisa) and LEDGER_OPENING_DATE (ISO date).
 These are used only when creating a new ledger; they never overwrite existing data.
+
+Multi-worker upgrade: sessions still identify a principal ID (`admin`, `royal`,
+or `worker-UUID`). Existing unscoped entries/audit events and the legacy opening
+balance belong only to Royal. A lazy, backed-up migration initializes Royal's
+profile without rewriting existing entries, credentials or sessions. New worker
+profiles contain hashed email/invitation tokens and their separate opening.
+Only admin can create workers and receive their one-time 14-day setup link.
+Worker-scoped reads, exports, audit, entry mutations and balances are enforced
+server-side. Workers cannot select another profile; admin can select any worker.
+All worker rates currently remain BDT250/hour.

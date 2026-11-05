@@ -27,3 +27,17 @@ assert.equal((await post({...work,id:randomUUID(),date:'2026-02-30'},worker)).st
 const concurrent=await Promise.all(Array.from({length:8},(_,i)=>post({...payment,id:randomUUID(),amount:10000,reference:'concurrent '+i},worker)));assert.ok(concurrent.every(r=>r.status===200));
 const view=await fetch(base+'/payments/api',{headers:{Cookie:admin}}).then(r=>r.json());assert.equal(view.totals.paid,80000);assert.equal(view.totals.balance,332500);assert.ok(view.audit.length>=15);
 console.log('PASS: private access, CSRF, one-time invitations, role permissions, hourly calculation, advance, edit conflicts, void history, invalid dates, duplicate prevention, eight simultaneous payments.');
+assert.equal((await post({action:'addWorker',name:'Other',email:'other@example.test',amount:0,date:'2026-11-05'},worker)).status,403);
+const added=await post({action:'addWorker',name:'Other worker',email:'other@example.test',amount:0,date:'2026-11-05'},admin);assert.equal(added.status,200);const otherId=added.data.workerId;
+assert.equal(added.data.entries.length,0);assert.equal(added.data.totals.balance,0);
+assert.equal((await post({action:'addWorker',name:'Duplicate',email:'other@example.test',amount:0,date:'2026-11-05'},admin)).status,409);
+const activated=await post({action:'setup',email:'other@example.test',password:pw,invite:added.data.setupUrl.split('#invite=')[1]});assert.equal(activated.status,200);const other=activated.cookie;
+assert.equal(activated.data.name,'Other worker');assert.equal(activated.data.workers.length,0);assert.equal(activated.data.entries.length,0);assert.ok(!JSON.stringify(activated.data).includes('Demo client'));
+assert.equal((await fetch(base+'/payments/api?worker=royal',{headers:{Cookie:other}})).status,403);
+assert.equal((await post({...work,worker:'royal',id:randomUUID()},other)).status,403);
+assert.equal((await post({...work,version:2},other)).status,403);
+assert.equal((await post({...payment,action:'void',worker:otherId,version:2},admin)).status,403);
+const own=await post({...work,id:randomUUID(),client:'Other private client',minutes:60},other);assert.equal(own.status,200);assert.equal(own.data.totals.balance,25000);
+const royalView=await fetch(base+'/payments/api',{headers:{Cookie:worker}}).then(r=>r.json());assert.ok(!JSON.stringify(royalView).includes('Other private client'));assert.equal(royalView.totals.balance,332500);
+const adminOther=await fetch(base+'/payments/api?worker='+otherId,{headers:{Cookie:admin}}).then(r=>r.json());assert.equal(adminOther.totals.balance,25000);assert.equal(adminOther.workers.length,2);
+console.log('PASS: admin-only worker creation, private invitations, duplicate email rejection, separate balances, cross-worker read/edit/void rejection and audit isolation.');

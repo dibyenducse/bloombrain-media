@@ -2,9 +2,10 @@ import {promises as fs} from 'node:fs';
 import {homedir} from 'node:os';
 import path from 'node:path';
 import {randomBytes} from 'node:crypto';
-export type Role='admin'|'royal';
-export type Entry={id:string;kind:'work'|'payment';date:string;client:string;description:string;minutes:number;amount:number;reference:string;by:Role;version:number;voided:boolean;createdAt:string;updatedAt:string};
-export type Ledger={version:number;users:Partial<Record<Role,{salt:string;hash:string}>>;sessions:{hash:string;role:Role;expires:number}[];attempts:Record<string,{count:number;until:number}>;opening:null|{amount:number;date:string;note:string};entries:Entry[];audit:{at:string;by:Role;action:string;before:unknown;after:unknown}[]};
+export type Role=string;
+export type Worker={name:string;emailHash:string;inviteHash?:string;expires?:number;opening:Ledger['opening']};
+export type Entry={workerId?:string;id:string;kind:'work'|'payment';date:string;client:string;description:string;minutes:number;amount:number;reference:string;by:Role;version:number;voided:boolean;createdAt:string;updatedAt:string};
+export type Ledger={version:number;workers?:Record<string,Worker>;users:Partial<Record<Role,{salt:string;hash:string}>>;sessions:{hash:string;role:Role;expires:number}[];attempts:Record<string,{count:number;until:number}>;opening:null|{amount:number;date:string;note:string};entries:Entry[];audit:{workerId?:string;at:string;by:Role;action:string;before:unknown;after:unknown}[]};
 export const directory=process.env.LEDGER_DATA_DIR||path.join(homedir(),'.bloombrain-private','payments');
 const filename=path.join(directory,'ledger.json');
 function initialOpening():Ledger['opening']{
