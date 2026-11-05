@@ -59,3 +59,13 @@ Only admin can create workers and receive their one-time 14-day setup link.
 Worker-scoped reads, exports, audit, entry mutations and balances are enforced
 server-side. Workers cannot select another profile; admin can select any worker.
 All worker rates currently remain BDT250/hour.
+
+Historical sheet snapshots: admin imports a prepared JSON file through the selected
+worker's Sheet history section. Snapshot entries, original cells/formulas and
+review issues are private server data, never repository assets. Import is one-time
+per worker and duplicate imports return 409. Historical records do not add to
+current totals: the accepted opening already carries their closing balance.
+Admin review notes/status are audited and never silently correct financial values.
+Missing project dates/hours remain missing. Downloads include the full snapshot.
+`node scripts/test-payment-history.mjs` uses an ignored local source fixture and
+existing isolated local test accounts; do not run against production.
