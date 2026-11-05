@@ -7,7 +7,14 @@ export type Entry={id:string;kind:'work'|'payment';date:string;client:string;des
 export type Ledger={version:number;users:Partial<Record<Role,{salt:string;hash:string}>>;sessions:{hash:string;role:Role;expires:number}[];attempts:Record<string,{count:number;until:number}>;opening:null|{amount:number;date:string;note:string};entries:Entry[];audit:{at:string;by:Role;action:string;before:unknown;after:unknown}[]};
 export const directory=process.env.LEDGER_DATA_DIR||path.join(homedir(),'.bloombrain-private','payments');
 const filename=path.join(directory,'ledger.json');
-const empty=():Ledger=>({version:1,users:{},sessions:[],attempts:{},opening:null,entries:[],audit:[]});
+function initialOpening():Ledger['opening']{
+ const amount=process.env.LEDGER_OPENING_PAISA,date=process.env.LEDGER_OPENING_DATE;
+ if(!amount&&!date)return null;
+ const n=Number(amount);
+ if(!amount||!date||!Number.isSafeInteger(n)||Math.abs(n)>100000000||!/^\d{4}-\d{2}-\d{2}$/.test(date)||new Date(date).toISOString().slice(0,10)!==date)throw new Error('Invalid opening configuration');
+ return {amount:n,date,note:'Owner-confirmed balance carried forward from the previous sheet'};
+}
+const empty=():Ledger=>({version:1,users:{},sessions:[],attempts:{},opening:initialOpening(),entries:[],audit:[]});
 // A shared filesystem lock serializes writers across Node processes. A live lock is
 // never stolen; crashed owners can be recovered after their PID no longer exists.
 export async function transaction<T>(fn:(db:Ledger)=>Promise<T>|T):Promise<T>{

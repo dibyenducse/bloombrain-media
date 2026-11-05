@@ -45,3 +45,7 @@ If a password is lost, the operator must verify the account owner, back up the
 ledger, remove ONLY that role's password record and sessions under the same
 filesystem lock, and generate a fresh invite. Rotating invitations alone cannot
 take over an activated account. Do not publish a public password-reset endpoint.
+
+An owner-confirmed opening may be provisioned through private host variables
+LEDGER_OPENING_PAISA (signed integer paisa) and LEDGER_OPENING_DATE (ISO date).
+These are used only when creating a new ledger; they never overwrite existing data.
