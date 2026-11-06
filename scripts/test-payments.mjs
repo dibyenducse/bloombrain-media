@@ -6,7 +6,7 @@ if(!base.startsWith('http://127.0.0.1:'))throw new Error('Local test server only
 const links=readFileSync('.payment-invitations.txt','utf8');
 const emails=[...links.matchAll(/\(([^)]+@[^)]+)\)/g)].map(m=>m[1]);const tokens=[...links.matchAll(/#invite=([a-f0-9]+)/g)].map(m=>m[1]);
 const pw='Local-test-only-7391!';
-async function post(body,cookie='',origin='https://bloombrainmedia.com'){const r=await fetch(base+'/payments/api',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin,Cookie:cookie},body:JSON.stringify(body)});return{status:r.status,data:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0]}}
+async function post(body,cookie='',origin=process.env.TEST_LEDGER_ORIGIN||'https://bloombrainmedia.com'){const r=await fetch(base+'/payments/api',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin,Cookie:cookie},body:JSON.stringify(body)});return{status:r.status,data:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0]}}
 assert.equal((await fetch(base+'/payments/api')).status,401);
 assert.equal((await post({action:'login',email:emails[0],password:pw},'','https://evil.example')).status,403);
 let a=await post({action:'setup',email:emails[0],password:pw,invite:tokens[0]});assert.equal(a.status,200);const admin=a.cookie;
