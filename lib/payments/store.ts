@@ -5,8 +5,9 @@ import path from 'node:path';
 import {randomBytes} from 'node:crypto';
 export type Role=string;
 export type Worker={hourlyRate?:number;settingsVersion?:number;name:string;emailHash:string;inviteHash?:string;expires?:number;opening:Ledger['opening']};
-export type Entry={workerId?:string;id:string;kind:'work'|'payment';hourlyRate?:number;date:string;client:string;description:string;minutes:number;amount:number;reference:string;by:Role;version:number;voided:boolean;createdAt:string;updatedAt:string};
-export type Ledger={version:number;freshStart?:{at:string;opening:Ledger['opening'];history?:SheetHistory;entries:Entry[];audit:Ledger['audit']};history?:Record<string,SheetHistory>;workers?:Record<string,Worker>;users:Partial<Record<Role,{salt:string;hash:string}>>;sessions:{hash:string;role:Role;expires:number}[];attempts:Record<string,{count:number;until:number}>;opening:null|{amount:number;date:string;note:string};entries:Entry[];audit:{workerId?:string;at:string;by:Role;action:string;before:unknown;after:unknown}[]};
+export type Project={id:string;workerId:string;client:string;name:string;status:'active'|'paused'|'completed';version:number;createdAt:string};
+export type Entry={projectId?:string;projectName?:string;workerId?:string;id:string;kind:'work'|'payment';hourlyRate?:number;date:string;client:string;description:string;minutes:number;amount:number;reference:string;by:Role;version:number;voided:boolean;createdAt:string;updatedAt:string};
+export type Ledger={version:number;projects?:Project[];freshStart?:{at:string;opening:Ledger['opening'];history?:SheetHistory;entries:Entry[];audit:Ledger['audit']};history?:Record<string,SheetHistory>;workers?:Record<string,Worker>;users:Partial<Record<Role,{salt:string;hash:string}>>;sessions:{hash:string;role:Role;expires:number}[];attempts:Record<string,{count:number;until:number}>;opening:null|{amount:number;date:string;note:string};entries:Entry[];audit:{workerId?:string;at:string;by:Role;action:string;before:unknown;after:unknown}[]};
 export const directory=process.env.LEDGER_DATA_DIR||path.join(homedir(),'.bloombrain-private','payments');
 const filename=path.join(directory,'ledger.json');
 function initialOpening():Ledger['opening']{

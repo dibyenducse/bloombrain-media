@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {readFileSync} from 'node:fs';
+import ts from 'typescript';
+const exports={};new Function('exports',ts.transpileModule(readFileSync('lib/payments/reports.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText)(exports);
+const url='http://127.0.0.1:5371';
+async function post(body,token='local-fresh-ledger-test-only'){const r=await fetch(url+'/payments/api',{method:'POST',headers:{Origin:url,'Content-Type':'application/json',Cookie:'bb_payments='+token},body:JSON.stringify(body)});return {status:r.status,data:await r.json()}}
+let r=await post({action:'createProject',client:'Ongoing client',name:'Weekly videos'},'local-worker-settings');assert.equal(r.status,200);let p=r.data.projects.find(p=>p.client==='Ongoing client');const before=r.data.totals.balance;
+assert.equal((await post({action:'createProject',client:' ongoing CLIENT ',name:'weekly videos'})).status,409);
+const entry={action:'save',id:randomUUID(),version:0,kind:'work',projectId:p.id,date:'2026-11-06',client:'',minutes:240,description:'Week one',reference:''};
+r=await post(entry,'local-worker-settings');assert.equal(r.status,200);
+r=await post({...entry,id:randomUUID(),date:'2026-12-03',minutes:300,description:'Week two'},'local-worker-settings');assert.equal(r.status,200);
+const logs=r.data.entries.filter(e=>e.projectId===p.id);assert.equal(logs.length,2);assert.equal(logs.reduce((a,e)=>a+e.minutes,0),540);assert.equal(r.data.totals.balance,before+450000);
+const rows=exports.reportRows(null,logs);assert.equal(exports.summarize(exports.filterReport(rows,'month','2026','2026-11','')).minutes,240);assert.equal(exports.summarize(exports.filterReport(rows,'month','2026','2026-12','')).minutes,300);
+r=await post({action:'projectStatus',id:p.id,version:1,status:'paused'},'local-worker-settings');assert.equal(r.status,200);assert.equal(r.data.totals.balance,before+450000);
+assert.equal((await post({action:'projectStatus',id:p.id,version:1,status:'active'})).status,409);
+r=await post({action:'projectStatus',id:p.id,version:2,status:'completed'});assert.equal(r.status,200);
+assert.equal((await post({...entry,id:randomUUID()})).status,409);
+r=await post({...entry,version:1,minutes:120},'local-worker-settings');assert.equal(r.status,200);
+r=await post({action:'projectStatus',id:p.id,version:3,status:'active'});assert.equal(r.status,200);
+r=await post({...entry,id:randomUUID(),minutes:60});assert.equal(r.status,200);
+const other=r.data.workers.find(w=>w.id!=='royal');assert.ok(other);
+assert.equal((await post({action:'projectStatus',worker:other.id,id:p.id,version:4,status:'paused'})).status,404);
+assert.equal((await post({...entry,worker:other.id,id:randomUUID()})).status,404);
+assert.equal((await post({action:'createProject',worker:other.id,client:'Forbidden',name:'Private'},'local-worker-settings')).status,403);
+console.log('PASS: repeated dated hours, 4h + 5h = 9h, separate monthly reports, pause/complete/reopen, historical corrections, stale status conflicts, duplicate projects and cross-worker isolation.');

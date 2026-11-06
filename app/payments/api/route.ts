@@ -1,3 +1,4 @@
+import {ensureProjects,projectKey} from '@/lib/payments/projects';
 import {startFresh} from '@/lib/payments/fresh-start';
 import {randomBytes,randomUUID} from 'node:crypto';
 import {NextRequest,NextResponse} from 'next/server';
@@ -10,8 +11,9 @@ function respond(data:unknown,status=200){return NextResponse.json(data,{status,
 function workers(db:Ledger){db.workers??={};db.workers.royal??={name:'Royal',emailHash:'',opening:db.opening};return db.workers;}
 function selected(db:Ledger,role:Role,w:unknown){const id=typeof w==='string'&&w?w:(role==='admin'?'royal':role);if(role!=='admin'&&id!==role)throw new InputError('Access denied.',403);if(!workers(db)[id])throw new InputError('Worker not found.',404);if(id==='royal')startFresh(db);return id;}
 function view(db:Ledger,role:Role,w?:unknown){const id=selected(db,role,w),profile=workers(db)[id];const entries=db.entries.filter(e=>(e.workerId||'royal')===id);const history=db.history?.[id];
+const projects=ensureProjects(db,id);
 const live=totals({opening:profile.opening,entries});
-return{role,workerId:id,name:profile.name,hourlyRate:profile.hourlyRate??25000,settingsVersion:profile.settingsVersion??0,active:!!db.users[id],history:db.history?.[id]||null,workers:role==='admin'?Object.entries(workers(db)).map(([id,w])=>({id,name:w.name,active:!!db.users[id]})):[],names:{admin:'Administrator',[id]:profile.name},opening:profile.opening,entries,audit:db.audit.filter(a=>(a.workerId||'royal')===id).slice(-100).reverse(),totals:live,syncedAt:new Date().toISOString()};}
+return{projects,role,workerId:id,name:profile.name,hourlyRate:profile.hourlyRate??25000,settingsVersion:profile.settingsVersion??0,active:!!db.users[id],history:db.history?.[id]||null,workers:role==='admin'?Object.entries(workers(db)).map(([id,w])=>({id,name:w.name,active:!!db.users[id]})):[],names:{admin:'Administrator',[id]:profile.name},opening:profile.opening,entries,audit:db.audit.filter(a=>(a.workerId||'royal')===id).slice(-100).reverse(),totals:live,syncedAt:new Date().toISOString()};}
 function requireRole(db:Ledger,req:NextRequest){const role=session(db,req.cookies.get(cookieName)?.value);if(!role)throw new InputError('Please sign in.',401);return role;}
 function text(v:unknown,max=300){if(typeof v!=='string'||v.length>max)throw new InputError('Invalid text.');return v.trim();}
 function secret(v:unknown){if(typeof v!=='string'||v.length>200)throw new InputError('Invalid password.');return v;}
@@ -58,6 +60,20 @@ export async function POST(req:NextRequest){
     return respond({...view(db,role,id),setupUrl:allowed+'/payments#invite='+token});
    }
    const workerId=selected(db,role,b.worker);const profile=workers(db)[workerId];
+   const projects=ensureProjects(db,workerId);
+   if(b.action==='createProject'){
+    const client=text(b.client,120),name=text(b.name,120);if(!client||!name)throw new InputError('Enter client and project name.');
+    if(projects.some(p=>projectKey(p.client)===projectKey(client)&&projectKey(p.name)===projectKey(name)))throw new InputError('This project already exists. Use Add hours on its card.',409);
+    const project={id:randomUUID(),workerId,client,name,status:'active' as const,version:1,createdAt:new Date().toISOString()};db.projects!.push(project);
+    audit(db,role,'Project created',null,project,workerId);return respond(view(db,role,workerId));
+   }
+   if(b.action==='projectStatus'){
+    const project=projects.find(p=>p.id===b.id);if(!project)throw new InputError('Project not found.',404);
+    if(project.version!==b.version)throw new InputError('Project changed. Refresh and try again.',409);
+    if(!['active','paused','completed'].includes(b.status))throw new InputError('Invalid project status.');
+    const before={...project};project.status=b.status;project.version++;
+    audit(db,role,'Project status changed',before,{...project},workerId);return respond(view(db,role,workerId));
+   }
    if(b.action==='inviteWorker'){
     if(role!=='admin')throw new InputError('Only the administrator can create an invitation.',403);
     if(db.users[workerId])throw new InputError('This worker is already activated. Use the sign-in page.',409);
@@ -93,9 +109,22 @@ export async function POST(req:NextRequest){
    else if(b.version!==0)throw new InputError('Entry no longer exists.',409);
    if(b.kind!=='work'&&b.kind!=='payment')throw new InputError('Choose work or payment.');
    const minutes=b.kind==='work'?integer(b.minutes,1,60000):0;
-   const client=text(b.client||'',120);if(b.kind==='work'&&!client)throw new InputError('Client name is required.');
+   let client=text(b.client||'',120),projectId:string|undefined,projectName:string|undefined;
+   if(b.kind==='work'){
+    const requested=old?.projectId||text(b.projectId||'',40);
+    let project=requested?projects.find(p=>p.id===requested):undefined;
+    if(requested&&!project)throw new InputError('Project not found.',404);
+    if(!project){
+     if(!client)throw new InputError('Client name is required.');
+     const name=text(b.projectName||'General work',120)||'General work';
+     project=projects.find(p=>projectKey(p.client)===projectKey(client)&&projectKey(p.name)===projectKey(name));
+     if(!project){project={id:randomUUID(),workerId,client,name,status:'active',version:1,createdAt:new Date().toISOString()};db.projects!.push(project);audit(db,role,'Project created',null,{...project},workerId);}
+    }
+    if(!old&&project.status==='completed')throw new InputError('Reopen this completed project before adding hours.',409);
+    projectId=project.id;projectName=project.name;client=project.client;
+   }
    const hourlyRate=b.kind==='work'?(old?.hourlyRate??(old?25000:profile.hourlyRate??25000)):undefined;
-   const entry:Entry={workerId,id,hourlyRate,kind:b.kind,date:date(b.date),client,description:text(b.description),minutes,amount:b.kind==='work'?Math.round(minutes*hourlyRate!/60):integer(b.amount,1,100000000),reference:text(b.reference,100),by:old?.by||role,version:(old?.version||0)+1,voided:false,createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+   const entry:Entry={workerId,id,projectId,projectName,hourlyRate,kind:b.kind,date:date(b.date),client,description:text(b.description),minutes,amount:b.kind==='work'?Math.round(minutes*hourlyRate!/60):integer(b.amount,1,100000000),reference:text(b.reference,100),by:old?.by||role,version:(old?.version||0)+1,voided:false,createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
    if(old&&old.kind!==entry.kind)throw new InputError('Entry type cannot change.');
    if(old)db.entries[db.entries.indexOf(old)]=entry;else db.entries.push(entry);
    audit(db,role,old?'Entry edited':'Entry added',old||null,entry,workerId);return respond(view(db,role,workerId));
