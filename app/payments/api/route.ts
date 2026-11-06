@@ -1,5 +1,4 @@
-import {reportRows,summarize} from '@/lib/payments/reports';
-import {parseHistory,historyTotals} from '@/lib/payments/history';
+import {startFresh} from '@/lib/payments/fresh-start';
 import {randomBytes,randomUUID} from 'node:crypto';
 import {NextRequest,NextResponse} from 'next/server';
 import {transaction,totals,type Ledger,type Role,type Entry} from '@/lib/payments/store';
@@ -9,12 +8,10 @@ const cookieName='bb_payments';
 class InputError extends Error{constructor(message:string,public status=400){super(message)}}
 function respond(data:unknown,status=200){return NextResponse.json(data,{status,headers:{'Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff'}})}
 function workers(db:Ledger){db.workers??={};db.workers.royal??={name:'Royal',emailHash:'',opening:db.opening};return db.workers;}
-function selected(db:Ledger,role:Role,w:unknown){const id=typeof w==='string'&&w?w:(role==='admin'?'royal':role);if(role!=='admin'&&id!==role)throw new InputError('Access denied.',403);if(!workers(db)[id])throw new InputError('Worker not found.',404);return id;}
+function selected(db:Ledger,role:Role,w:unknown){const id=typeof w==='string'&&w?w:(role==='admin'?'royal':role);if(role!=='admin'&&id!==role)throw new InputError('Access denied.',403);if(!workers(db)[id])throw new InputError('Worker not found.',404);if(id==='royal')startFresh(db);return id;}
 function view(db:Ledger,role:Role,w?:unknown){const id=selected(db,role,w),profile=workers(db)[id];const entries=db.entries.filter(e=>(e.workerId||'royal')===id);const history=db.history?.[id];
-// Owner authorized Royal's closing to follow the complete source ledger.
-if(id==='royal'&&history&&!history.reconciledAt&&profile.opening){const before={...profile.opening};profile.opening={...profile.opening,amount:historyTotals(history).balance,note:'Reconciled from complete historical work, payments and original advance'};history.reconciledAt=new Date().toISOString();for(const issue of history.issues){if(['full-ledger','november-total'].includes(issue.id)){issue.status='reviewed';issue.note='Closing balance reconciled to the complete historical ledger at the owner’s request. Original source values are retained.';}}audit(db,'admin','Historical closing reconciled',before,{...profile.opening},id);}
-const live=totals({opening:profile.opening,entries}),combined=history?.reconciledAt?summarize(reportRows(history,entries)):null;
-return{role,workerId:id,name:profile.name,history:db.history?.[id]||null,workers:role==='admin'?Object.entries(workers(db)).map(([id,w])=>({id,name:w.name,active:!!db.users[id]})):[],names:{admin:'Administrator',[id]:profile.name},opening:profile.opening,entries,audit:db.audit.filter(a=>(a.workerId||'royal')===id).slice(-100).reverse(),totals:combined?{...combined,balance:live.balance}:live,syncedAt:new Date().toISOString()};}
+const live=totals({opening:profile.opening,entries});
+return{role,workerId:id,name:profile.name,history:db.history?.[id]||null,workers:role==='admin'?Object.entries(workers(db)).map(([id,w])=>({id,name:w.name,active:!!db.users[id]})):[],names:{admin:'Administrator',[id]:profile.name},opening:profile.opening,entries,audit:db.audit.filter(a=>(a.workerId||'royal')===id).slice(-100).reverse(),totals:live,syncedAt:new Date().toISOString()};}
 function requireRole(db:Ledger,req:NextRequest){const role=session(db,req.cookies.get(cookieName)?.value);if(!role)throw new InputError('Please sign in.',401);return role;}
 function text(v:unknown,max=300){if(typeof v!=='string'||v.length>max)throw new InputError('Invalid text.');return v.trim();}
 function secret(v:unknown){if(typeof v!=='string'||v.length>200)throw new InputError('Invalid password.');return v;}
@@ -61,21 +58,6 @@ export async function POST(req:NextRequest){
     return respond({...view(db,role,id),setupUrl:allowed+'/payments#invite='+token});
    }
    const workerId=selected(db,role,b.worker);const profile=workers(db)[workerId];
-   if(b.action==='importHistory'){
-    if(role!=='admin')throw new InputError('Only the administrator can import history.',403);
-    if(db.history?.[workerId])throw new InputError('History already imported. Duplicate import blocked.',409);
-    let snapshot;try{snapshot=parseHistory(b.history)}catch(e){throw new InputError((e as Error).message)}
-    snapshot.importedAt=new Date().toISOString();db.history??={};db.history[workerId]=snapshot;
-    audit(db,role,'Sheet history imported',null,{source:snapshot.sourceName,records:snapshot.records.length,hash:snapshot.sourceHash},workerId);
-    return respond(view(db,role,workerId));
-   }
-   if(b.action==='reviewIssue'){
-    if(role!=='admin')throw new InputError('Only the administrator can review issues.',403);
-    const issue=db.history?.[workerId]?.issues.find(i=>i.id===b.issueId);if(!issue)throw new InputError('Issue not found.',404);
-    if(b.status!=='open'&&b.status!=='reviewed')throw new InputError('Invalid review status.');
-    const note=text(b.note,1000);if(!note)throw new InputError('Add a review note.');const before={...issue};issue.status=b.status;issue.note=note;
-    audit(db,role,'History issue reviewed',before,{...issue},workerId);return respond(view(db,role,workerId));
-   }
    if(b.action==='opening'){
     if(role!=='admin')throw new InputError('Only the admin can set the opening balance.',403);
     if(profile.opening)throw new InputError('Opening balance is already set.',409);
