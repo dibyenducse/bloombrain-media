@@ -1,4 +1,5 @@
-import {parseHistory} from '@/lib/payments/history';
+import {reportRows,summarize} from '@/lib/payments/reports';
+import {parseHistory,historyTotals} from '@/lib/payments/history';
 import {randomBytes,randomUUID} from 'node:crypto';
 import {NextRequest,NextResponse} from 'next/server';
 import {transaction,totals,type Ledger,type Role,type Entry} from '@/lib/payments/store';
@@ -9,7 +10,11 @@ class InputError extends Error{constructor(message:string,public status=400){sup
 function respond(data:unknown,status=200){return NextResponse.json(data,{status,headers:{'Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff'}})}
 function workers(db:Ledger){db.workers??={};db.workers.royal??={name:'Royal',emailHash:'',opening:db.opening};return db.workers;}
 function selected(db:Ledger,role:Role,w:unknown){const id=typeof w==='string'&&w?w:(role==='admin'?'royal':role);if(role!=='admin'&&id!==role)throw new InputError('Access denied.',403);if(!workers(db)[id])throw new InputError('Worker not found.',404);return id;}
-function view(db:Ledger,role:Role,w?:unknown){const id=selected(db,role,w),profile=workers(db)[id];const entries=db.entries.filter(e=>(e.workerId||'royal')===id);return{role,workerId:id,name:profile.name,history:db.history?.[id]||null,workers:role==='admin'?Object.entries(workers(db)).map(([id,w])=>({id,name:w.name,active:!!db.users[id]})):[],names:{admin:'Administrator',[id]:profile.name},opening:profile.opening,entries,audit:db.audit.filter(a=>(a.workerId||'royal')===id).slice(-100).reverse(),totals:totals({opening:profile.opening,entries}),syncedAt:new Date().toISOString()};}
+function view(db:Ledger,role:Role,w?:unknown){const id=selected(db,role,w),profile=workers(db)[id];const entries=db.entries.filter(e=>(e.workerId||'royal')===id);const history=db.history?.[id];
+// Owner authorized Royal's closing to follow the complete source ledger.
+if(id==='royal'&&history&&!history.reconciledAt&&profile.opening){const before={...profile.opening};profile.opening={...profile.opening,amount:historyTotals(history).balance,note:'Reconciled from complete historical work, payments and original advance'};history.reconciledAt=new Date().toISOString();for(const issue of history.issues){if(['full-ledger','november-total'].includes(issue.id)){issue.status='reviewed';issue.note='Closing balance reconciled to the complete historical ledger at the owner’s request. Original source values are retained.';}}audit(db,'admin','Historical closing reconciled',before,{...profile.opening},id);}
+const live=totals({opening:profile.opening,entries}),combined=history?.reconciledAt?summarize(reportRows(history,entries)):null;
+return{role,workerId:id,name:profile.name,history:db.history?.[id]||null,workers:role==='admin'?Object.entries(workers(db)).map(([id,w])=>({id,name:w.name,active:!!db.users[id]})):[],names:{admin:'Administrator',[id]:profile.name},opening:profile.opening,entries,audit:db.audit.filter(a=>(a.workerId||'royal')===id).slice(-100).reverse(),totals:combined?{...combined,balance:live.balance}:live,syncedAt:new Date().toISOString()};}
 function requireRole(db:Ledger,req:NextRequest){const role=session(db,req.cookies.get(cookieName)?.value);if(!role)throw new InputError('Please sign in.',401);return role;}
 function text(v:unknown,max=300){if(typeof v!=='string'||v.length>max)throw new InputError('Invalid text.');return v.trim();}
 function secret(v:unknown){if(typeof v!=='string'||v.length>200)throw new InputError('Invalid password.');return v;}
@@ -90,7 +95,7 @@ export async function POST(req:NextRequest){
    else if(b.version!==0)throw new InputError('Entry no longer exists.',409);
    if(b.kind!=='work'&&b.kind!=='payment')throw new InputError('Choose work or payment.');
    const minutes=b.kind==='work'?integer(b.minutes,1,60000):0;
-   const client=b.kind==='work'?text(b.client,120):'';if(b.kind==='work'&&!client)throw new InputError('Client name is required.');
+   const client=text(b.client||'',120);if(b.kind==='work'&&!client)throw new InputError('Client name is required.');
    const entry:Entry={workerId,id,kind:b.kind,date:date(b.date),client,description:text(b.description),minutes,amount:b.kind==='work'?Math.round(minutes*25000/60):integer(b.amount,1,100000000),reference:text(b.reference,100),by:old?.by||role,version:(old?.version||0)+1,voided:false,createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
    if(old&&old.kind!==entry.kind)throw new InputError('Entry type cannot change.');
    if(old)db.entries[db.entries.indexOf(old)]=entry;else db.entries.push(entry);

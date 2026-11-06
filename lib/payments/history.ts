@@ -1,4 +1,4 @@
-export type SheetHistory={version:1;sourceUrl:string;sourceName:string;sheetName:string;sheetId:string;sourceHash:string;exportedAt:string;importedAt?:string;initialAdvance:number;records:{id:string;kind:'work'|'payment';row:number;label:string;detail:string;amount:number;date:string;refs:string}[];rows:{row:number;cells:{ref:string;value:string;formula:string}[]}[];issues:{id:string;refs:string;title:string;detail:string;status:'open'|'reviewed';note:string}[]};
+export type SheetHistory={reconciledAt?:string;version:1;sourceUrl:string;sourceName:string;sheetName:string;sheetId:string;sourceHash:string;exportedAt:string;importedAt?:string;initialAdvance:number;records:{id:string;kind:'work'|'payment';row:number;label:string;detail:string;amount:number;date:string;refs:string}[];rows:{row:number;cells:{ref:string;value:string;formula:string}[]}[];issues:{id:string;refs:string;title:string;detail:string;status:'open'|'reviewed';note:string}[]};
 export function parseHistory(input:unknown):SheetHistory{
  const x=input as SheetHistory;
  const str=(v:unknown,max=2000)=>typeof v==='string'&&v.length<=max;

@@ -69,3 +69,18 @@ Admin review notes/status are audited and never silently correct financial value
 Missing project dates/hours remain missing. Downloads include the full snapshot.
 `node scripts/test-payment-history.mjs` uses an ignored local source fixture and
 existing isolated local test accounts; do not run against production.
+
+Reconciled reports: at the owner's request Royal's historical closing is derived
+once from historical earned minus payments minus the original advance. The
+opening correction is backed up and audited; a `reconciledAt` marker prevents
+reapplication. Existing new entries are preserved. Headline totals include both
+historical and new entries, while running balance uses corrected closing plus
+new earned minus new payments (no duplicate carryforward).
+Monthly is the default report; yearly/all-time/undated and client filters use the
+same normalized report rows. Original advance is included in all-time paid and
+kept undated. Historical work with no date is not allocated to a month/year.
+Payment labels missing a year use the sole year present in explicit sheet dates,
+with a visible provenance note. Unknown hours remain unknown. Voids are excluded.
+Payments may optionally be linked to a client; unallocated payments remain general.
+Run `node --experimental-strip-types scripts/test-payment-reports.mjs` with the
+isolated local report fixture/server to verify reconciliation and continuity.
